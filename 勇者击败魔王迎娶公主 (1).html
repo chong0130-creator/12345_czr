@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>勇者击败魔王迎娶公主</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(239, 68, 68, 0.9); }
+        }
+        .boss-glow {
+            animation: pulseGlow 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4 font-sans select-none">
+
+    <!-- 游戏主容器 -->
+    <div id="game-container" class="w-full max-w-4xl h-[650px] bg-slate-900 border-4 border-amber-600/80 rounded-2xl shadow-2xl relative overflow-hidden flex flex-col justify-between">
+        
+        <!-- 顶部状态栏 -->
+        <div id="status-bar" class="bg-slate-950/90 border-b-2 border-amber-600/50 p-3 px-6 flex justify-between items-center text-sm z-20 hidden">
+            <div class="flex items-center gap-4">
+                <span class="font-bold text-amber-400 text-lg">🛡️ 勇者</span>
+                <span>Lv.<span id="stat-lv">1</span></span>
+                <span>HP: <span id="stat-hp" class="text-green-400 font-bold">100</span>/<span id="stat-maxhp">100</span></span>
+                <span>MP: <span id="stat-mp" class="text-blue-400 font-bold">50</span>/<span id="stat-maxmp">50</span></span>
+                <span>金币: <span id="stat-gold" class="text-yellow-400 font-bold">0</span></span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="stat-weapon" class="bg-amber-900/40 text-amber-300 px-2 py-0.5 rounded border border-amber-600 text-xs">木剑</span>
+                <button onclick="saveGame()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs border border-slate-600 transition">存档</button>
+                <button onclick="loadGame()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs border border-slate-600 transition">读档</button>
+            </div>
+        </div>
+
+        <!-- 游戏主要内容视口 -->
+        <div id="viewport" class="flex-1 relative flex items-center justify-center overflow-hidden bg-cover bg-center" style="background-image: radial-gradient(circle, #1e1b4b 0%, #020617 100%);">
+            
+            <!-- 场景 0: 标题画面 -->
+            <div id="scene-title" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-950/80 backdrop-blur-sm z-30">
+                <h1 class="text-4xl md:text-5xl font-extrabold text-amber-400 mb-4 drop-shadow-[0_5px_15px_rgba(245,158,11,0.4)]">
+                    勇者击败魔王迎娶公主
+                </h1>
+                <p class="text-slate-400 mb-8 max-w-md text-sm md:text-base">
+                    踏上拯救王国与公主的史诗冒险旅程！体验一场精彩的 5~10 分钟日式奇幻童话 RPG。
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <button onclick="startGame()" class="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold px-8 py-3 rounded-xl shadow-lg transform hover:scale-105 transition">
+                        开始游戏
+                    </button>
+                    <button onclick="loadGame()" class="bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold px-6 py-3 rounded-xl border border-amber-600/50 shadow-lg transform hover:scale-105 transition">
+                        读取存档
+                    </button>
+                </div>
+            </div>
+
+            <!-- 立绘展示层 -->
+            <div id="scene-visuals" class="absolute inset-0 flex items-end justify-between px-12 pb-6 z-10 pointer-events-none hidden">
+                <div id="left-character" class="w-48 md:w-64 transition-all duration-500 transform translate-y-10 opacity-0">
+                    <img id="left-img" src="" alt="公主立绘" class="w-full h-auto drop-shadow-2xl max-h-72 object-contain">
+                </div>
+                <div id="right-character" class="w-48 md:w-64 transition-all duration-500 transform translate-y-10 opacity-0">
+                    <img id="right-img" src="" alt="魔王立绘" class="w-full h-auto drop-shadow-2xl max-h-72 object-contain">
+                </div>
+            </div>
+
+            <!-- 战斗界面 -->
+            <div id="battle-ui" class="absolute inset-0 bg-slate-950/70 p-6 flex flex-col justify-between z-20 hidden">
+                <div class="flex justify-between items-center bg-slate-900/80 p-4 rounded-xl border border-slate-700">
+                    <div class="text-center">
+                        <h3 id="enemy-name" class="font-bold text-red-400 text-lg mb-1">哥布林</h3>
+                        <div class="w-48 bg-slate-700 h-3 rounded-full overflow-hidden border border-slate-600">
+                            <div id="enemy-hp-bar" class="bg-red-500 h-full w-full transition-all duration-300"></div>
+                        </div>
+                        <span id="enemy-hp-text" class="text-xs text-slate-300">100/100</span>
+                    </div>
+                    <div id="enemy-sprite-container" class="w-32 h-32 flex items-center justify-center">
+                        <img id="enemy-sprite" src="" class="max-h-full max-w-full drop-shadow-lg object-contain" alt="敌人">
+                    </div>
+                </div>
+
+                <div id="battle-log" class="bg-slate-900/90 border border-amber-600/40 rounded-xl p-3 h-24 overflow-y-auto text-xs md:text-sm text-slate-300 space-y-1">
+                    <p class="text-amber-400">战斗开始！请选择你的行动。</p>
+                </div>
+
+                <div id="battle-actions" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <button onclick="playerAttack()" class="bg-red-900/80 hover:bg-red-800 text-red-200 font-bold py-3 rounded-xl border border-red-600 shadow transition flex items-center justify-center gap-2">
+                        ⚔️ 攻击
+                    </button>
+                    <button onclick="playerSkill()" class="bg-blue-900/80 hover:bg-blue-800 text-blue-200 font-bold py-3 rounded-xl border border-blue-600 shadow transition flex items-center justify-center gap-2">
+                        🔥 技能 <span class="text-xs opacity-75">(10MP)</span>
+                    </button>
+                    <button onclick="playerHeal()" class="bg-green-900/80 hover:bg-green-800 text-green-200 font-bold py-3 rounded-xl border border-green-600 shadow transition flex items-center justify-center gap-2">
+                        🧪 回复 <span class="text-xs opacity-75">(15MP)</span>
+                    </button>
+                    <button onclick="playerDefend()" class="bg-amber-900/80 hover:bg-amber-800 text-amber-200 font-bold py-3 rounded-xl border border-amber-600 shadow transition flex items-center justify-center gap-2">
+                        🛡️ 防御
+                    </button>
+                </div>
+            </div>
+
+            <!-- 探索/场景点击操作区 -->
+            <div id="exploration-ui" class="absolute inset-0 flex flex-col items-center justify-center p-6 z-20 hidden">
+                <div id="exploration-content" class="bg-slate-900/90 border border-amber-600/50 p-6 rounded-2xl max-w-lg w-full text-center shadow-xl animate-fade-in">
+                    <h2 id="exp-title" class="text-2xl font-bold text-amber-400 mb-3">王都广场</h2>
+                    <p id="exp-desc" class="text-slate-300 mb-6 text-sm md:text-base leading-relaxed">国王在王宫等待着你的到来，准备好接受史诗级任务了吗？</p>
+                    <div id="exp-buttons" class="flex flex-wrap justify-center gap-4">
+                        <button onclick="talkToKing()" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl transition">与国王对话</button>
+                        <button onclick="goToForest()" class="bg-emerald-700 hover:bg-emerald-600 text-slate-100 font-bold px-6 py-2.5 rounded-xl transition">出发前往森林</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 结束画面 -->
+            <div id="scene-ending" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-950/90 backdrop-blur-md z-30 hidden">
+                <h1 class="text-3xl md:text-4xl font-extrabold text-amber-400 mb-2">👑 勇者与公主结婚了</h1>
+                <p class="text-xl text-emerald-400 mb-6 font-semibold">THE END - GAME CLEAR</p>
+                <p class="text-slate-300 max-w-md text-sm mb-8">魔王被击败后，王国重新恢复了和平。英雄的名字将永远铭刻在历史的长河中。</p>
+                <div class="flex gap-4">
+                    <button onclick="resetGame()" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-6 py-3 rounded-xl transition">重新开始</button>
+                    <button onclick="returnToTitle()" class="bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold px-6 py-3 rounded-xl border border-amber-600 transition">返回标题</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 对话框层 -->
+        <div id="dialog-box" class="bg-slate-950 border-t-2 border-amber-600/80 p-4 px-6 min-h-[140px] flex flex-col justify-between z-30 hidden shadow-inner">
+            <div class="flex items-center justify-between">
+                <span id="speaker-name" class="font-bold text-amber-400 text-base md:text-lg tracking-wide bg-amber-950/60 px-3 py-0.5 rounded border border-amber-600/40">旁白</span>
+                <span class="text-xs text-slate-500 animate-pulse">点击继续 ▾</span>
+            </div>
+            <div id="dialog-text" class="text-slate-200 text-sm md:text-base my-2 leading-relaxed min-h-[48px]">
+                黑屏淡入。很久以前，在一个遥远的王国……
+            </div>
+            <div class="flex justify-end">
+                <button onclick="advanceDialog()" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-6 py-1.5 rounded-lg text-sm shadow transition">
+                    继续 (Space/Click)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 使用 GitHub 公开直链作为角色立绘源
+        const IMG_PRINCESS = "https://raw.githubusercontent.com/chong0130-creator/image-for-pretty-girl/refs/heads/main/1787987487103.png";
+        const IMG_DEMONLORD = "https://raw.githubusercontent.com/chong0130-creator/image-for-pretty-girl/refs/heads/main/MEITU_20260829_150930972.jpg";
+
+        let gameState = {
+            hp: 100, maxHp: 100, mp: 50, maxMp: 50,
+            atk: 25, def: 10, gold: 0, exp: 0, level: 1,
+            weapon: "木剑", scene: "title", dialogIndex: 0,
+            currentStory: "intro", hasSword: false, forestProgress: 0,
+            bossHp: 300, bossMaxHp: 300, defending: false
+        };
+
+        const stories = {
+            intro: [
+                { speaker: "旁白", text: "很久以前，在一个遥远的王国……" },
+                { speaker: "旁白", text: "魔王突然率领魔族袭击王国，并将美丽的公主强行抓走！" },
+                { speaker: "国王", text: "勇者啊，魔王已经将我的女儿带走。请你前往魔王城，把公主救回来！" },
+                { speaker: "勇者", text: "我一定会救出公主！" },
+                { speaker: "旁白", text: "黑屏淡入。王都广场上，国王将王国世代相传的宝物交给了你。" }
+            ],
+            forest_deep: [
+                { speaker: "旁白", text: "经过艰难的跋涉，你终于来到了森林深处，周围弥漫着黑暗的魔王气息……" },
+                { speaker: "旁白", text: "突然，两只狂暴的魔物从树丛中窜出！" }
+            ],
+            boss_intro: [
+                { speaker: "旁白", text: "你推开了魔王城沉重的大门，阴暗的大殿中央正站着那个恐怖的身影。" },
+                { speaker: "魔王", text: "勇者，你终于来了。" },
+                { speaker: "公主", text: "勇者！小心，他非常强大！" },
+                { speaker: "魔王", text: "想救公主？那就证明你的实力吧。" }
+            ],
+            rescue: [
+                { speaker: "旁白", text: "轰隆一声巨响，魔王庞大的身躯无力地倒在了地上！" },
+                { speaker: "魔王", text: "不可能……区区一个勇者……" },
+                { speaker: "公主", text: "谢谢你，勇者。你终于来了。" },
+                { speaker: "勇者", text: "我答应过国王，一定会救你。" },
+                { speaker: "公主", text: "那么……我们一起回家吧。" }
+            ],
+            wedding: [
+                { speaker: "旁白", text: "两人安全返回王都，举国上下陷入了狂欢与喜悦之中。" },
+                { speaker: "国王", text: "勇者，你拯救了王国，也救出了我的女儿！" },
+                { speaker: "旁白", text: "几个月后……王宫举行了盛大而浪漫的婚礼。" },
+                { speaker: "旁白", text: "魔王被击败后，王国重新恢复了和平。" }
+            ]
+        };
+
+        function startGame() {
+            document.getElementById('scene-title').classList.add('hidden');
+            document.getElementById('status-bar').classList.remove('hidden');
+            document.getElementById('dialog-box').classList.remove('hidden');
+            document.getElementById('scene-visuals').classList.remove('hidden');
+            
+            gameState.currentStory = 'intro';
+            gameState.dialogIndex = 0;
+            updateStats();
+            showCurrentDialog();
+        }
+
+        function updateStats() {
+            document.getElementById('stat-lv').innerText = gameState.level;
+            document.getElementById('stat-hp').innerText = gameState.hp;
+            document.getElementById('stat-maxhp').innerText = gameState.maxHp;
+            document.getElementById('stat-mp').innerText = gameState.mp;
+            document.getElementById('stat-maxmp').innerText = gameState.maxMp;
+            document.getElementById('stat-gold').innerText = gameState.gold;
+            document.getElementById('stat-weapon').innerText = gameState.weapon;
+        }
+
+        function showCurrentDialog() {
+            const list = stories[gameState.currentStory];
+            if (!list || gameState.dialogIndex >= list.length) {
+                handleStoryEnd();
+                return;
+            }
+
+            const current = list[gameState.dialogIndex];
+            document.getElementById('speaker-name').innerText = current.speaker;
+            document.getElementById('dialog-text').innerText = current.text;
+
+            const leftImg = document.getElementById('left-img');
+            const leftChar = document.getElementById('left-character');
+            const rightImg = document.getElementById('right-img');
+            const rightChar = document.getElementById('right-character');
+
+            leftChar.classList.add('opacity-0', 'translate-y-10');
+            rightChar.classList.add('opacity-0', 'translate-y-10');
+
+            if (current.speaker === '公主' || current.speaker === '国王') {
+                leftImg.src = IMG_PRINCESS;
+                leftChar.classList.remove('opacity-0', 'translate-y-10');
+            } else if (current.speaker === '魔王') {
+                rightImg.src = IMG_DEMONLORD;
+                rightChar.classList.remove('opacity-0', 'translate-y-10');
+            }
+        }
+
+        function advanceDialog() {
+            gameState.dialogIndex++;
+            showCurrentDialog();
+        }
+
+        function handleStoryEnd() {
+            if (gameState.currentStory === 'intro') {
+                document.getElementById('dialog-box').classList.add('hidden');
+                document.getElementById('scene-visuals').classList.add('hidden');
+                showExploration("王都广场", "国王在王宫等待着你的到来，你可以向国王获取勇者之剑与指引。", true);
+            } else if (gameState.currentStory === 'forest_deep') {
+                document.getElementById('dialog-box').classList.add('hidden');
+                document.getElementById('scene-visuals').classList.add('hidden');
+                startBattle("森林魔狼", 80, 80, 20, IMG_DEMONLORD, "forest_done");
+            } else if (gameState.currentStory === 'boss_intro') {
+                document.getElementById('dialog-box').classList.add('hidden');
+                document.getElementById('scene-visuals').classList.add('hidden');
+                startBattle("魔王", gameState.bossHp, gameState.bossMaxHp, 45, IMG_DEMONLORD, "game_clear");
+            } else if (gameState.currentStory === 'rescue') {
+                gameState.currentStory = 'wedding';
+                gameState.dialogIndex = 0;
+                document.getElementById('scene-visuals').classList.remove('hidden');
+                document.getElementById('dialog-box').classList.remove('hidden');
+                showCurrentDialog();
+            } else if (gameState.currentStory === 'wedding') {
+                document.getElementById('dialog-box').classList.add('hidden');
+                document.getElementById('scene-visuals').classList.add('hidden');
+                document.getElementById('status-bar').classList.add('hidden');
+                document.getElementById('scene-ending').classList.remove('hidden');
+            }
+        }
+
+        function showExploration(title, desc, showKingBtn) {
+            const expUI = document.getElementById('exploration-ui');
+            expUI.classList.remove('hidden');
+            document.getElementById('exp-title').innerText = title;
+            document.getElementById('exp-desc').innerText = desc;
+            
+            const btnContainer = document.getElementById('exp-buttons');
+            if (showKingBtn && !gameState.hasSword) {
+                btnContainer.innerHTML = `
+                    <button onclick="talkToKing()" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl transition">与国王对话</button>
+                    <button onclick="goToForest()" class="bg-emerald-700 hover:bg-emerald-600 text-slate-100 font-bold px-6 py-2.5 rounded-xl transition">出发前往森林</button>
+                `;
+            } else {
+                btnContainer.innerHTML = `
+                    <button onclick="goToForest()" class="bg-emerald-700 hover:bg-emerald-600 text-slate-100 font-bold px-6 py-2.5 rounded-xl transition">进入魔王森林 / 城堡</button>
+                `;
+            }
+        }
+
+        function talkToKing() {
+            gameState.hasSword = true;
+            gameState.atk = 45;
+            gameState.weapon = "勇者之剑";
+            updateStats();
+            showExploration("王都广场 - 国王的恩赐", "国王微笑着将传说中的神兵利器交给了你，并嘱咐道：『魔王就在森林深处的城堡里，请务必小心！』", false);
+        }
+
+        function goToForest() {
+            document.getElementById('exploration-ui').classList.add('hidden');
+            if (gameState.forestProgress === 0) {
+                gameState.forestProgress = 1;
+                gameState.currentStory = 'forest_deep';
+                gameState.dialogIndex = 0;
+                document.getElementById('dialog-box').classList.remove('hidden');
+                document.getElementById('scene-visuals').classList.remove('hidden');
+                showCurrentDialog();
+            } else {
+                gameState.currentStory = 'boss_intro';
+                gameState.dialogIndex = 0;
+                document.getElementById('dialog-box').classList.remove('hidden');
+                document.getElementById('scene-visuals').classList.remove('hidden');
+                showCurrentDialog();
+            }
+        }
+
+        let currentBattle = { enemyName: "", enemyHp: 100, enemyMaxHp: 100, enemyAtk: 15, nextStoryOrAction: "" };
+
+        function startBattle(name, hp, maxHp, atk, spriteImg, nextAction) {
+            currentBattle = { enemyName: name, enemyHp: hp, enemyMaxHp: maxHp, enemyAtk: atk, nextStoryOrAction: nextAction };
+            document.getElementById('battle-ui').classList.remove('hidden');
+            document.getElementById('enemy-name').innerText = name;
+            document.getElementById('enemy-sprite').src = spriteImg;
+            if(name === "魔王") {
+                document.getElementById('enemy-sprite-container').classList.add('boss-glow');
+            } else {
+                document.getElementById('enemy-sprite-container').classList.remove('boss-glow');
+            }
+            updateBattleUI();
+            logBattle(`遭遇敌人【${name}】！战斗开始！`);
+        }
+
+        function updateBattleUI() {
+            const pct = Math.max(0, (currentBattle.enemyHp / currentBattle.enemyMaxHp) * 100);
+            document.getElementById('enemy-hp-bar').style.width = pct + '%';
+            document.getElementById('enemy-hp-text').innerText = `${currentBattle.enemyHp}/${currentBattle.enemyMaxHp}`;
+            updateStats();
+        }
+
+        function logBattle(msg) {
+            const logBox = document.getElementById('battle-log');
+            logBox.innerHTML += `<p>${msg}</p>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function playerAttack() {
+            let dmg = gameState.atk + Math.floor(Math.random() * 10) - 5;
+            currentBattle.enemyHp -= dmg;
+            logBattle(`勇者发动攻击，对 ${currentBattle.enemyName} 造成了 <span class="text-red-400 font-bold">${dmg}</span> 点伤害！`);
+            checkBattleState();
+        }
+
+        function playerSkill() {
+            if (gameState.mp < 10) { logBattle(`<span class="text-yellow-400">法力值不足！</span>`); return; }
+            gameState.mp -= 10;
+            let dmg = (gameState.atk * 2) + Math.floor(Math.random() * 15);
+            currentBattle.enemyHp -= dmg;
+            logBattle(`勇者释放圣光斩！对 ${currentBattle.enemyName} 造成了 <span class="text-amber-400 font-bold">${dmg}</span> 点巨额伤害！`);
+            checkBattleState();
+        }
+
+        function playerHeal() {
+            if (gameState.mp < 15) { logBattle(`<span class="text-yellow-400">法力值不足！</span>`); return; }
+            gameState.mp -= 15;
+            let healAmt = 45;
+            gameState.hp = Math.min(gameState.maxHp, gameState.hp + healAmt);
+            logBattle(`勇者使用治愈术，恢复了 <span class="text-green-400 font-bold">${healAmt}</span> 点生命值！`);
+            enemyTurn();
+        }
+
+        function playerDefend() {
+            gameState.defending = true;
+            logBattle(`勇者摆出防御姿态，受到的伤害将大幅减少！`);
+            enemyTurn();
+        }
+
+        function checkBattleState() {
+            updateBattleUI();
+            if (currentBattle.enemyHp <= 0) {
+                winBattle();
+            } else {
+                setTimeout(enemyTurn, 600);
+            }
+        }
+
+        function enemyTurn() {
+            if (currentBattle.enemyHp <= 0) return;
+            if (currentBattle.enemyName === "魔王" && currentBattle.enemyHp <= 150 && !currentBattle.dialogTriggered) {
+                currentBattle.dialogTriggered = true;
+                logBattle(`<span class="text-purple-400 font-bold">魔王面露惊恐：「不可能……区区一个勇者……」</span>`);
+            }
+            let dmg = currentBattle.enemyAtk + Math.floor(Math.random() * 8) - 3;
+            if (gameState.defending) { dmg = Math.floor(dmg / 2); gameState.defending = false; }
+            gameState.hp = Math.max(0, gameState.hp - dmg);
+            logBattle(`${currentBattle.enemyName} 发起反击，对你造成了 <span class="text-orange-400 font-bold">${dmg}</span> 点伤害！`);
+            updateStats();
+            if (gameState.hp <= 0) {
+                logBattle(`<span class="text-red-500 font-bold">勇者倒下了……满血复活再战！</span>`);
+                setTimeout(() => { gameState.hp = gameState.maxHp; updateStats(); }, 1000);
+            }
+        }
+
+        function winBattle() {
+            document.getElementById('battle-ui').classList.add('hidden');
+            logBattle('');
+            if (currentBattle.nextStoryOrAction === "forest_done") {
+                gameState.gold += 50; gameState.exp += 100; gameState.level = 2; gameState.maxHp = 150; gameState.hp = 150;
+                updateStats();
+                showExploration("魔王森林深处", "你成功击败了魔物，获得了丰厚的战利品，实力得到了提升！接下来请前往魔王城决战。", false);
+            } else if (currentBattle.nextStoryOrAction === "game_clear") {
+                gameState.currentStory = 'rescue';
+                gameState.dialogIndex = 0;
+                document.getElementById('dialog-box').classList.remove('hidden');
+                document.getElementById('scene-visuals').classList.remove('hidden');
+                showCurrentDialog();
+            }
+        }
+
+        function saveGame() {
+            localStorage.setItem('hero_rpg_save', JSON.stringify(gameState));
+            alert('游戏存档成功！');
+        }
+
+        function loadGame() {
+            const data = localStorage.getItem('hero_rpg_save');
+            if (!data) { alert('没有找到存档记录！'); return; }
+            try {
+                gameState = JSON.parse(data);
+                document.getElementById('scene-title').classList.add('hidden');
+                document.getElementById('scene-ending').classList.add('hidden');
+                document.getElementById('exploration-ui').classList.add('hidden');
+                document.getElementById('battle-ui').classList.add('hidden');
+                document.getElementById('status-bar').classList.remove('hidden');
+                document.getElementById('dialog-box').classList.remove('hidden');
+                document.getElementById('scene-visuals').classList.remove('hidden');
+                updateStats();
+                showCurrentDialog();
+                alert('读取存档成功！');
+            } catch(e) { alert('存档解析失败！'); }
+        }
+
+        function resetGame() { location.reload(); }
+        function returnToTitle() { location.reload(); }
+    </script>
+</body>
+</html>
